@@ -1,0 +1,587 @@
+<!DOCTYPE html>
+<html lang="mn">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kahoot! Монгол - Бүгд зэрэг тоглох сорилт</title>
+  
+  <!-- CSS -->
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- CDNs: PeerJS (WebRTC), Canvas Confetti, QRCode.js -->
+  <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+</head>
+<body>
+
+  <!-- Хөвөгч арын дүррсүүд -->
+  <div class="bg-shapes">
+    <div class="shape shape-1"></div>
+    <div class="shape shape-2"></div>
+    <div class="shape shape-3"></div>
+    <div class="shape shape-4"></div>
+    <div class="shape shape-5"></div>
+  </div>
+
+  <!-- Толгой хэсэг (Header) -->
+  <header class="app-header">
+    <div class="brand" onclick="location.reload()">
+      <span>
+        <span class="brand-k">K</span><span class="brand-a">a</span><span class="brand-h">h</span><span class="brand-o">o</span><span class="brand-k">o</span><span class="brand-a">t</span><span class="brand-h">!</span>
+      </span>
+      <span class="brand-badge">МОНГОЛ</span>
+    </div>
+
+    <div class="header-controls">
+      <button class="icon-btn" id="muteBtn" title="Дуу хаах/нээх">🔊</button>
+      <button class="icon-btn" id="editQuestionsBtn" title="Асуултууд засах">✏️</button>
+      <button class="icon-btn" id="githubGuideBtn" title="GitHub дээр байршуулах заавар">🚀</button>
+      <button class="icon-btn" id="homeBtn" title="Нүүр хуудас" style="display: none;">🏠</button>
+    </div>
+  </header>
+
+  <!-- Үндсэн контент (Main Content) -->
+  <main class="main-content">
+
+    <!-- 1. НҮҮР ХУУДАС (HOME VIEW) -->
+    <div id="homeView" class="view active">
+      <div class="home-container">
+        <h1 class="hero-title">Найзуудтайгаа зэрэг тоглох Kahoot!</h1>
+        <p class="hero-sub">
+          10 сонирхолтой асуултад хэн хамгийн хурдан, зөв хариулахыг үзээрэй! Утаснаасаа нэгдэн шууд тоглох боломжтой.
+        </p>
+
+        <div class="cards-grid">
+          <!-- Өрөө үүсгэх карт -->
+          <div class="role-card">
+            <div class="role-icon">👑</div>
+            <h2>Өрөө үүсгэх (Host)</h2>
+            <p>Дэлгэц эсвэл ТВ дээр гаргаж, бусад найзуудаа PIN кодоор оруулан тоглоомыг удирдах</p>
+            <button class="btn btn-primary" id="btnGoHost">
+              <span>Өрөө үүсгэх ▶</span>
+            </button>
+          </div>
+
+          <!-- Тоглоомд орох карт -->
+          <div class="role-card">
+            <div class="role-icon">🎮</div>
+            <h2>Тоглоомд орох (Player)</h2>
+            <p>Дэлгэц дээрх PIN код эсвэл QR кодыг уншуулж утаснаасаа 4 өнгөөр хариулах</p>
+            <button class="btn btn-accent" id="btnGoJoin">
+              <span>Тоглоомд орох ▶</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="home-footer-links">
+          <button class="link-btn" onclick="openQuestionModal()">📝 10 асуултыг харах / өөрчлөх</button>
+          <button class="link-btn" onclick="openGithubModal()">🌐 GitHub Pages дээр 2 минутад тавих заавар</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. ХОСТ: ЛОББИ ХҮЛЭЭЛГИЙН ӨРӨӨ (HOST LOBBY VIEW) -->
+    <div id="hostLobbyView" class="view">
+      <div class="lobby-card">
+        <div class="lobby-header">
+          <div class="pin-section">
+            <span class="pin-label">Тоглоомын PIN код:</span>
+            <div class="pin-display-wrapper">
+              <span class="pin-display" id="displayPin">------</span>
+              <button class="icon-btn" id="copyPinBtn" title="PIN хуулах">📋</button>
+            </div>
+          </div>
+
+          <div class="qr-mini" id="qrContainerWrapper" title="QR кодоор шууд орох">
+            <div id="lobbyQrCode"></div>
+            <div style="font-size: 13px; font-weight: 700; color: #46178f;">
+              <div>📱 QR уншуулаад</div>
+              <div style="color: #666; font-size: 11px;">Шууд нэгдэх</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="players-counter">
+          <span>Нэгдсэн тоглогчид:</span>
+          <span class="players-badge"><span id="playersCount">0</span> тоглогч</span>
+        </div>
+
+        <div class="players-grid" id="lobbyPlayersGrid">
+          <!-- Тоглогчид энд динамикаар орно -->
+        </div>
+
+        <div class="lobby-footer">
+          <button class="btn btn-secondary" id="addBotBtn" style="width: auto;">
+            <span>🤖 Тест бот нэмэх</span>
+          </button>
+          <button class="btn btn-primary" id="startGameBtn" style="width: auto; min-width: 240px;" disabled>
+            <span>▶ ТОГЛООМ ЭХЛЭХ</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. ТОГЛОГЧ: PIN ОРУУЛАХ ХЭСЭГ (JOIN VIEW) -->
+    <div id="joinView" class="view">
+      <div class="join-card">
+        <h2>Тоглоомд нэгдэх</h2>
+
+        <div class="form-group">
+          <label class="form-label">Тоглоомын PIN код</label>
+          <input type="number" id="inputPin" class="input-box pin-input" placeholder="123456" maxlength="6">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Таны нэр</label>
+          <input type="text" id="inputName" class="input-box" placeholder="Нэрээ бичнэ үү..." maxlength="12">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Аватар сонгох</label>
+          <div class="avatar-grid" id="avatarPicker">
+            <!-- 16 аватар JS-ээр үүснэ -->
+          </div>
+        </div>
+
+        <button class="btn btn-primary" id="btnSubmitJoin">
+          <span>Нэгдэх 🚀</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 4. ТОГЛОГЧ: ХҮЛЭЭЛГИЙН ДЭЛГЭЦ (PLAYER WAITING VIEW) -->
+    <div id="playerWaitingView" class="view">
+      <div class="waiting-box">
+        <div class="waiting-avatar" id="waitAvatar">🦊</div>
+        <div class="waiting-name" id="waitName">Тоглогч</div>
+        <div class="waiting-msg" id="waitMsg">
+          Чи тоглоомд орлоо! <br>Дэлгэц дээр нэрээ харж байна уу? 👀<br>
+          <small style="opacity: 0.8; margin-top: 10px; display: inline-block;">Хост эхлүүлэхийг хүлээж байна...</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- 5. 3.. 2.. 1.. БЭЛТГЭЭРЭЙ ТОЙРОГ (COUNTDOWN VIEW) -->
+    <div id="countdownView" class="view">
+      <div class="getready-box">
+        <div class="getready-num" id="countdownNumber">3</div>
+        <div class="getready-text" id="countdownText">Бэлтгээрэй!</div>
+      </div>
+    </div>
+
+    <!-- 6. ХОСТ: АСУУЛТ ХАРУУЛАХ ДЭЛГЭЦ (HOST QUIZ VIEW) -->
+    <div id="hostQuizView" class="view">
+      <div class="host-quiz-layout">
+        <div class="quiz-topbar">
+          <div class="question-counter" id="hostQNum">Асуулт 1 / 10</div>
+          <div class="answers-submitted-tag" id="answersCount">0/0 хариулсан</div>
+        </div>
+
+        <div class="question-card-main">
+          <div class="question-text-title" id="hostQText">
+            Дэлхийн хамгийн хурдан хуурай газрын амьтан аль нь вэ?
+          </div>
+
+          <div class="timer-container">
+            <svg class="timer-svg" viewBox="0 0 80 80">
+              <circle class="timer-circle-bg" cx="40" cy="40" r="35"></circle>
+              <circle class="timer-circle-progress" id="timerProgress" cx="40" cy="40" r="35"></circle>
+            </svg>
+            <div class="timer-number" id="timerNumber">20</div>
+          </div>
+        </div>
+
+        <!-- 4 өнгийн хариултын хайрцагнууд -->
+        <div class="kahoot-grid" id="hostOptionsGrid">
+          <!-- JS-ээр нэмэгдэнэ -->
+        </div>
+
+        <div id="hostNextControls" style="display: none; justify-content: flex-end; margin-top: 10px;">
+          <button class="btn btn-purple" id="btnHostNext" style="width: auto; min-width: 220px;" onclick="game.showLeaderboard()">
+            <span>Онооны самбар харах ▶</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. ТОГЛОГЧ: АСУУЛТАД ХАРИУЛАХ ДЭЛГЭЦ (PLAYER QUIZ VIEW) -->
+    <div id="playerQuizView" class="view">
+      <div class="player-screen">
+        <div class="player-header-bar">
+          <span id="playerQCounter">Асуулт 1 / 10</span>
+          <span id="playerMyScore">0 оноо</span>
+        </div>
+
+        <div class="player-question-preview" id="playerQPreview">
+          Асуулт ачаалж байна...
+        </div>
+
+        <!-- 4 өнгийн том товшилтын товчлуурууд -->
+        <div class="player-grid-touch" id="playerTouchButtons">
+          <button class="player-btn-touch opt-red" id="pBtn_0" onclick="game.submitAnswer(0)">
+            <div class="opt-shape">
+              <svg viewBox="0 0 24 24"><polygon points="12,2 22,20 2,20" fill="#fff" /></svg>
+            </div>
+            <div class="btn-label" id="pLabel_0">Сонголт 1</div>
+          </button>
+
+          <button class="player-btn-touch opt-blue" id="pBtn_1" onclick="game.submitAnswer(1)">
+            <div class="opt-shape">
+              <svg viewBox="0 0 24 24"><polygon points="12,2 22,12 12,22 2,12" fill="#fff" /></svg>
+            </div>
+            <div class="btn-label" id="pLabel_1">Сонголт 2</div>
+          </button>
+
+          <button class="player-btn-touch opt-yellow" id="pBtn_2" onclick="game.submitAnswer(2)">
+            <div class="opt-shape">
+              <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#fff" /></svg>
+            </div>
+            <div class="btn-label" id="pLabel_2">Сонголт 3</div>
+          </button>
+
+          <button class="player-btn-touch opt-green" id="pBtn_3" onclick="game.submitAnswer(3)">
+            <div class="opt-shape">
+              <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" fill="#fff" /></svg>
+            </div>
+            <div class="btn-label" id="pLabel_3">Сонголт 4</div>
+          </button>
+        </div>
+
+        <div class="player-answered-state" id="playerAnsweredState">
+          <div style="font-size: 50px;">⏳</div>
+          <div style="font-size: 22px; font-weight: 800;">Хариулт илгээгдлээ!</div>
+          <p>Бусад тоглогчдыг хүлээж байна...</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8. ТОГЛОГЧ: ҮР ДҮНГИЙН ХАРИУ (PLAYER RESULT VIEW) -->
+    <div id="playerResultView" class="view">
+      <div class="player-result-card result-correct" id="playerResultCard">
+        <div class="result-icon" id="resIcon">🎉</div>
+        <div class="result-title" id="resTitle">ЗӨВ ХАРИУЛЛАА!</div>
+        <div class="result-points" id="resPoints">+920 оноо</div>
+        <div class="result-streak" id="resStreak">🔥 2 дараалсан зөв!</div>
+      </div>
+    </div>
+
+    <!-- 9. ОНООНЫ САМБАР (LEADERBOARD VIEW) -->
+    <div id="leaderboardView" class="view">
+      <div class="leaderboard-card">
+        <h2 class="leaderboard-title">Онооны самбар 📊</h2>
+        
+        <div class="leaderboard-list" id="leaderboardList">
+          <!-- Топ 5 тоглогч энд харагдана -->
+        </div>
+
+        <button class="btn btn-primary" id="lbNextBtn" style="margin-top: 10px;">
+          <span>Дараагийн асуулт ▶</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 10. ШАГНАЛЫН ТАВЦАН (PODIUM VIEW) -->
+    <div id="podiumView" class="view">
+      <div class="podium-container">
+        <div class="podium-header">
+          <h1>ЯЛАГЧИД 🏆</h1>
+          <p style="font-size: 18px; opacity: 0.9;">Баяр хүргэе! Тэргүүлэгч тоглогчид шалгарлаа</p>
+        </div>
+
+        <div class="podium-stage">
+          <!-- 2-р байр (Silver) -->
+          <div class="podium-pillar-wrapper">
+            <div class="podium-player-info">
+              <div class="podium-avatar" id="p2Avatar">🥈</div>
+              <div class="podium-name" id="p2Name">-</div>
+              <div class="podium-score" id="p2Score">0</div>
+            </div>
+            <div class="podium-block block-second">
+              <span class="podium-rank-num">2</span>
+            </div>
+          </div>
+
+          <!-- 1-р байр (Gold) -->
+          <div class="podium-pillar-wrapper">
+            <div class="podium-player-info">
+              <div style="font-size: 26px;">👑</div>
+              <div class="podium-avatar" id="p1Avatar">🥇</div>
+              <div class="podium-name" id="p1Name">-</div>
+              <div class="podium-score" id="p1Score">0</div>
+            </div>
+            <div class="podium-block block-first">
+              <span class="podium-rank-num">1</span>
+            </div>
+          </div>
+
+          <!-- 3-р байр (Bronze) -->
+          <div class="podium-pillar-wrapper">
+            <div class="podium-player-info">
+              <div class="podium-avatar" id="p3Avatar">🥉</div>
+              <div class="podium-name" id="p3Name">-</div>
+              <div class="podium-score" id="p3Score">0</div>
+            </div>
+            <div class="podium-block block-third">
+              <span class="podium-rank-num">3</span>
+            </div>
+          </div>
+        </div>
+
+        <button class="btn btn-accent" onclick="location.reload()" style="max-width: 280px;">
+          <span>🔄 Дахин тоглох</span>
+        </button>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Асуулт засах модал (Question Editor Modal) -->
+  <div class="modal-overlay" id="questionModal">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h3>✏️ 10 Асуултыг засах / харах</h3>
+        <button class="modal-close" onclick="closeQuestionModal()">✕</button>
+      </div>
+      <div class="modal-body" id="questionListEditor">
+        <!-- Асуултуудын жагсаалт -->
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="resetDefaultQuestions()" style="width: auto;">
+          <span>Анхны байдалд оруулах</span>
+        </button>
+        <button class="btn btn-primary" onclick="saveEditedQuestions()" style="width: auto;">
+          <span>Хадгалах 💾</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- GitHub Pages дээр тавих заавар модал (GitHub Guide Modal) -->
+  <div class="modal-overlay" id="githubModal">
+    <div class="modal-window">
+      <div class="modal-header">
+        <h3>🚀 GitHub Pages дээр байршуулах заавар</h3>
+        <button class="modal-close" onclick="closeGithubModal()">✕</button>
+      </div>
+      <div class="modal-body guide-content">
+        <p>Энэ сайт нь ямар ч сервер код шаардахгүйгээр 100% <strong>GitHub Pages</strong> дээр үнэгүй ажиллана!</p>
+
+        <div class="guide-step">
+          <strong>Алхам 1: GitHub дээр шинэ Repository үүсгэх</strong>
+          <p>github.com руу ороод <code>New repository</code> дараад жишээ нь <code>kahoot-mgl</code> гэж нэр өгөөрэй (Public байх ёстой).</p>
+        </div>
+
+        <div class="guide-step">
+          <strong>Алхам 2: Файлуудаа байршуулах</strong>
+          <p>Терминал дээр дараах командуудыг ажиллуулна:</p>
+          <pre>git init
+git add .
+git commit -m "Kahoot game ready"
+git branch -M main
+git remote add origin https://github.com/ТаныНэр/kahoot-mgl.git
+git push -u origin main</pre>
+        </div>
+
+        <div class="guide-step">
+          <strong>Алхам 3: GitHub Pages идэвхжүүлэх</strong>
+          <p>Repository-ийнхаа <strong>Settings ➔ Pages</strong> цэс рүү ороод <strong>Source</strong> хэсэгт <code>Deploy from a branch</code>, Branch-д <code>main</code> / <code>root</code> сонгоод <strong>Save</strong> дарна.</p>
+        </div>
+
+        <div class="guide-step">
+          <strong>Алхам 4: Тоглоомоо эхлүүлэх!</strong>
+          <p>1-2 минутын дараа таны сайт бэлэн болно: <br>
+          <code>https://таны-нэр.github.io/kahoot-mgl/</code> холбоосоор найзуудаа урин зэрэг тоглоорой! 🎉</p>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-primary" onclick="closeGithubModal()" style="width: auto;">
+          <span>Ойлголоо 👍</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast мэдэгдэл -->
+  <div class="toast" id="toast">Мэдэгдэл</div>
+
+  <!-- Үндсэн скриптүүд -->
+  <script src="audio.js"></script>
+  <script src="questions.js"></script>
+  <script src="game.js"></script>
+
+  <script>
+    // Аватар сонголтууд
+    const AVATARS = ['🦊', '🐼', '🦁', '🦄', '🚀', '🐱', '🐸', '🐶', '👾', '🤖', '🐯', '🐨', '🐙', '🦉', '🦩', '🦖'];
+    let selectedAvatar = '🦊';
+
+    // Анхны ачаалал
+    window.addEventListener('DOMContentLoaded', () => {
+      // Аватар сонгогч үүсгэх
+      const avatarGrid = document.getElementById('avatarPicker');
+      AVATARS.forEach((emoji, idx) => {
+        const span = document.createElement('div');
+        span.className = `avatar-choice ${idx === 0 ? 'selected' : ''}`;
+        span.textContent = emoji;
+        span.onclick = () => {
+          document.querySelectorAll('.avatar-choice').forEach(c => c.classList.remove('selected'));
+          span.classList.add('selected');
+          selectedAvatar = emoji;
+          sounds.playPop();
+        };
+        avatarGrid.appendChild(span);
+      });
+
+      // URL parameters шалгах (?pin=123456)
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlPin = urlParams.get('pin');
+      if (urlPin) {
+        document.getElementById('inputPin').value = urlPin;
+        game.showView('joinView');
+        document.getElementById('homeBtn').style.display = 'flex';
+      }
+
+      // Товчнуудын холболтууд
+      document.getElementById('btnGoHost').onclick = () => {
+        sounds.playPop();
+        game.initHost();
+        game.showView('hostLobbyView');
+        document.getElementById('homeBtn').style.display = 'flex';
+      };
+
+      document.getElementById('btnGoJoin').onclick = () => {
+        sounds.playPop();
+        game.initPlayer();
+        game.showView('joinView');
+        document.getElementById('homeBtn').style.display = 'flex';
+      };
+
+      document.getElementById('btnSubmitJoin').onclick = () => {
+        const pin = document.getElementById('inputPin').value;
+        const name = document.getElementById('inputName').value;
+        game.joinGame(pin, name, selectedAvatar);
+      };
+
+      document.getElementById('startGameBtn').onclick = () => {
+        game.startGame();
+      };
+
+      document.getElementById('addBotBtn').onclick = () => {
+        game.addBotPlayer();
+      };
+
+      document.getElementById('copyPinBtn').onclick = () => {
+        if (game.pin) {
+          navigator.clipboard.writeText(game.pin);
+          game.showToast("PIN хуулагдлаа: " + game.pin);
+          sounds.playPop();
+        }
+      };
+
+      // Sound toggle
+      const muteBtn = document.getElementById('muteBtn');
+      muteBtn.onclick = () => {
+        const isMuted = sounds.toggleMute();
+        muteBtn.textContent = isMuted ? '🔇' : '🔊';
+        game.showToast(isMuted ? "Дуу хаагдлаа" : "Дуу нээгдлээ");
+      };
+
+      document.getElementById('editQuestionsBtn').onclick = openQuestionModal;
+      document.getElementById('githubGuideBtn').onclick = openGithubModal;
+      document.getElementById('homeBtn').onclick = () => {
+        if (confirm("Үндсэн хуудас руу буцах уу?")) {
+          location.href = window.location.pathname;
+        }
+      };
+    });
+
+    // Modals
+    function openQuestionModal() {
+      sounds.playPop();
+      renderQuestionEditor();
+      document.getElementById('questionModal').classList.add('active');
+    }
+
+    function closeQuestionModal() {
+      document.getElementById('questionModal').classList.remove('active');
+    }
+
+    function openGithubModal() {
+      sounds.playPop();
+      document.getElementById('githubModal').classList.add('active');
+    }
+
+    function closeGithubModal() {
+      document.getElementById('githubModal').classList.remove('active');
+    }
+
+    // Асуулт засах хэсгийг зурах
+    function renderQuestionEditor() {
+      const questions = QuestionManager.getQuestions();
+      const container = document.getElementById('questionListEditor');
+      container.innerHTML = '';
+
+      questions.forEach((q, qIdx) => {
+        const card = document.createElement('div');
+        card.className = 'q-edit-card';
+        card.innerHTML = `
+          <div class="q-edit-header">
+            <span>Асуулт ${qIdx + 1} (${q.category || 'Ерөнхий'})</span>
+          </div>
+          <input type="text" class="input-box" id="qEdit_title_${qIdx}" value="${q.question}" style="text-align: left; font-size: 15px; padding: 8px 12px;">
+          <div class="q-edit-inputs">
+            ${q.options.map((opt, oIdx) => `
+              <div class="q-opt-row">
+                <input type="radio" name="qCorrect_${qIdx}" value="${oIdx}" ${q.correct === oIdx ? 'checked' : ''}>
+                <input type="text" id="qEdit_opt_${qIdx}_${oIdx}" value="${opt}">
+              </div>
+            `).join('')}
+          </div>
+        `;
+        container.appendChild(card);
+      });
+    }
+
+    function saveEditedQuestions() {
+      const current = QuestionManager.getQuestions();
+      const updated = [];
+
+      for (let i = 0; i < current.length; i++) {
+        const titleEl = document.getElementById(`qEdit_title_${i}`);
+        const opts = [];
+        for (let j = 0; j < 4; j++) {
+          const optEl = document.getElementById(`qEdit_opt_${i}_${j}`);
+          opts.push(optEl ? optEl.value : `Сонголт ${j + 1}`);
+        }
+        const checkedRadio = document.querySelector(`input[name="qCorrect_${i}"]:checked`);
+        const correct = checkedRadio ? parseInt(checkedRadio.value) : 0;
+
+        updated.push({
+          id: i + 1,
+          question: titleEl ? titleEl.value : current[i].question,
+          options: opts,
+          correct: correct,
+          time: 20,
+          category: current[i].category || 'Ерөнхий'
+        });
+      }
+
+      QuestionManager.saveQuestions(updated);
+      game.questions = updated;
+      game.showToast("Асуултууд амжилттай хадгалагдлаа! 💾");
+      sounds.playCorrect();
+      closeQuestionModal();
+    }
+
+    function resetDefaultQuestions() {
+      if (confirm("Бүх асуултыг анхны 10 асуулт болгож сэргээх үү?")) {
+        const def = QuestionManager.resetToDefault();
+        game.questions = def;
+        renderQuestionEditor();
+        game.showToast("Анхны асуултууд сэргээгдлээ!");
+        sounds.playPop();
+      }
+    }
+  </script>
+</body>
+</html>
